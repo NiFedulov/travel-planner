@@ -1,0 +1,26 @@
+{
+  "schengen_airside_atv_required": ["AF", "BD", "CD", "ER", "ET", "GH", "GN", "IR", "IQ", "NG", "PK", "SO", "LK", "SS", "SD"],
+  "schengen_landside_exempt_with_visa": ["US_VISA", "UK_VISA", "CANADA_VISA"],
+  "schengen_free_countries": ["EU", "US", "CA", "AU", "NZ", "JP", "KR", "SG", "IL", "GB", "UA"],
+  "schengen_member_codes": ["AT","BE","CZ","DK","EE","FI","FR","DE","GR","HU","IS","IT","LV","LI","LT","LU","MT","NL","NO","PL","PT","SK","SI","ES","SE","CH"],
+  "non_schengen_eu": ["CY", "BG", "RO", "IE", "HR"],
+  "transit_hubs": {
+    "IST": { "country": "TR", "schengen": false, "airside_ok": true, "terminal_change_ok": true },
+    "DXB": { "country": "AE", "schengen": false, "airside_ok": true },
+    "DOH": { "country": "QA", "schengen": false, "airside_ok": true },
+    "AUH": { "country": "AE", "schengen": false, "airside_ok": true },
+    "CDG": { "country": "FR", "schengen": true, "same_terminal_ok": true, "diff_terminal_landside": true },
+    "FRA": { "country": "DE", "schengen": true, "same_terminal_ok": true },
+    "AMS": { "country": "NL", "schengen": true, "single_terminal": true },
+    "MXP": { "country": "IT", "schengen": true },
+    "FCO": { "country": "IT", "schengen": true },
+    "ATH": { "country": "GR", "schengen": true },
+    "LHR": { "country": "GB", "schengen": false, "airside_ok": true }
+  },
+  "mutual_bans": [
+    {"a": "IL", "b": "IR"},
+    {"a": "IL", "b": "SY"},
+    {"a": "IL", "b": "LB"},
+    {"a": "AM", "b": "AZ"}
+  ]
+}

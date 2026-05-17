@@ -1,0 +1,116 @@
+{
+  "passport_validity_months": {
+    "default": 6,
+    "schengen": 3,
+    "GB": 6,
+    "US": 6,
+    "AU": 6,
+    "NZ": 3,
+    "SG": 6,
+    "TH": 6,
+    "ID": 6,
+    "MY": 6,
+    "PH": 6,
+    "VN": 6,
+    "JP": 6,
+    "KR": 6,
+    "IN": 6,
+    "AE": 6,
+    "QA": 6,
+    "TR": 6,
+    "MA": 3,
+    "MX": 6,
+    "BR": 6,
+    "AR": 6,
+    "ZA": 6
+  },
+  "blank_pages_required": {
+    "default": 1,
+    "US": 2,
+    "ZA": 2,
+    "BR": 2,
+    "NG": 4,
+    "KE": 2,
+    "EG": 2,
+    "TH": 2,
+    "AU": 2
+  },
+  "eta_required": {
+    "US": {
+      "name": "ESTA",
+      "cost_usd": 21,
+      "valid_days": 730,
+      "exempt_passports": ["US"],
+      "applies_to_visa_waiver_countries": true,
+      "url": "https://esta.cbp.dhs.gov"
+    },
+    "CA": {
+      "name": "eTA",
+      "cost_usd": 7,
+      "currency": "CAD",
+      "valid_years": 5,
+      "exempt": ["US"],
+      "url": "https://www.canada.ca/en/immigration-refugees-citizenship/services/visit-canada/eta.html"
+    },
+    "GB": {
+      "name": "UK ETA",
+      "cost_gbp": 10,
+      "valid_years": 2,
+      "url": "https://www.gov.uk/guidance/apply-for-an-electronic-travel-authorisation-eta"
+    },
+    "AU": {
+      "name": "ETA / eVisitor",
+      "cost_aud": 20,
+      "notes": "eVisitor free for EU/EEA passports",
+      "url": "https://immi.homeaffairs.gov.au/visas/getting-a-visa/visa-listing/electronic-travel-authority-601"
+    },
+    "IN": {
+      "name": "e-Visa",
+      "cost_usd": 25,
+      "notes": "Cost varies by nationality and duration",
+      "url": "https://indianvisaonline.gov.in"
+    },
+    "LK": {
+      "name": "ETA",
+      "cost_usd": 35,
+      "url": "https://www.eta.gov.lk"
+    },
+    "KE": {
+      "name": "eTA",
+      "cost_usd": 30,
+      "url": "https://www.etakenya.go.ke"
+    },
+    "RW": {
+      "name": "e-Visa",
+      "cost_usd": 30,
+      "url": "https://irembo.gov.rw"
+    }
+  },
+  "insurance_required": {
+    "schengen": {
+      "required": true,
+      "min_coverage_eur": 30000,
+      "notes": "Must cover medical + repatriation"
+    },
+    "CU": {
+      "required": true,
+      "notes": "Available at airport on arrival"
+    },
+    "RU": {
+      "required": true,
+      "notes": "Required for visa application"
+    }
+  },
+  "yellow_fever_required": {
+    "entry_from_endemic": ["NG", "GH", "GN", "CI", "CM", "CD", "AO", "TZ", "KE", "ET", "UG", "BR", "CO", "PE", "EC", "VE", "BO"],
+    "mandatory_regardless": ["CD", "GH", "GN", "LR", "ML", "MR", "NE", "SL", "TG", "CF", "CG", "GA"]
+  },
+  "proof_of_funds_required": {
+    "schengen": { "required": true, "amount_per_day_eur": 100 },
+    "US": { "required": true, "notes": "No fixed amount, officer discretion" },
+    "TH": { "required": true, "amount_per_person_thb": 10000 },
+    "AU": { "required": false }
+  },
+  "return_ticket_required": ["US", "TH", "MX", "CR", "PA", "NI", "HN", "GT", "PH", "ID"],
+  "israeli_stamp_issue": ["IR", "IQ", "LY", "YE", "SY", "LB", "SD"]
+}

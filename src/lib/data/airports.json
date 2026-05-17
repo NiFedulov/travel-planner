@@ -1,0 +1,172 @@
+{
+  "CDG": {
+    "name": "Paris Charles de Gaulle",
+    "city": "Paris",
+    "country": "FR",
+    "size": "XL",
+    "complexity": "high",
+    "efficiency": 0.7,
+    "terminals": ["1", "2A", "2B", "2C", "2D", "2E", "2F", "3"],
+    "terminalTransferMin": {
+      "same": 0,
+      "2x_to_2x": 10,
+      "1_to_2x": 35,
+      "any_to_3": 50
+    },
+    "transferMode": "shuttle_bus",
+    "securityAvgMin": 25,
+    "passportControlAvgMin": 20,
+    "mct": {
+      "intl_intl_same": 60,
+      "intl_intl_diff": 90,
+      "intl_domestic": 120
+    }
+  },
+  "FRA": {
+    "name": "Frankfurt Airport",
+    "city": "Frankfurt",
+    "country": "DE",
+    "size": "XL",
+    "complexity": "medium",
+    "efficiency": 0.9,
+    "terminals": ["1", "2"],
+    "terminalTransferMin": { "same": 0, "1_to_2": 20 },
+    "transferMode": "skytrain",
+    "securityAvgMin": 15,
+    "passportControlAvgMin": 15,
+    "mct": {
+      "intl_intl_same": 45,
+      "intl_intl_diff": 60,
+      "intl_domestic": 75
+    }
+  },
+  "IST": {
+    "name": "Istanbul Airport",
+    "city": "Istanbul",
+    "country": "TR",
+    "size": "XL",
+    "complexity": "high",
+    "efficiency": 0.65,
+    "terminals": ["main"],
+    "terminalTransferMin": { "same": 0 },
+    "securityAvgMin": 30,
+    "passportControlAvgMin": 25,
+    "mct": {
+      "intl_intl_same": 90,
+      "intl_domestic": 120
+    }
+  },
+  "AMS": {
+    "name": "Amsterdam Schiphol",
+    "city": "Amsterdam",
+    "country": "NL",
+    "size": "L",
+    "complexity": "low",
+    "efficiency": 0.95,
+    "terminals": ["main"],
+    "terminalTransferMin": { "same": 0 },
+    "securityAvgMin": 12,
+    "passportControlAvgMin": 10,
+    "mct": {
+      "intl_intl": 40,
+      "intl_domestic": 50
+    }
+  },
+  "DXB": {
+    "name": "Dubai International",
+    "city": "Dubai",
+    "country": "AE",
+    "size": "XL",
+    "complexity": "medium",
+    "efficiency": 0.85,
+    "terminals": ["1", "2", "3"],
+    "terminalTransferMin": { "same": 0, "1_to_3": 60, "2_to_3": 75 },
+    "transferMode": "bus",
+    "securityAvgMin": 20,
+    "passportControlAvgMin": 15,
+    "mct": {
+      "intl_intl_same": 60,
+      "intl_intl_diff": 90
+    }
+  },
+  "ATH": {
+    "name": "Athens International",
+    "city": "Athens",
+    "country": "GR",
+    "size": "M",
+    "complexity": "low",
+    "efficiency": 0.88,
+    "terminals": ["main"],
+    "terminalTransferMin": { "same": 0 },
+    "securityAvgMin": 15,
+    "passportControlAvgMin": 12,
+    "mct": {
+      "intl_intl": 45,
+      "intl_domestic": 60
+    }
+  },
+  "MXP": {
+    "name": "Milan Malpensa",
+    "city": "Milan",
+    "country": "IT",
+    "size": "L",
+    "complexity": "low",
+    "efficiency": 0.87,
+    "terminals": ["1", "2"],
+    "terminalTransferMin": { "same": 0, "1_to_2": 25 },
+    "transferMode": "shuttle_bus",
+    "securityAvgMin": 15,
+    "passportControlAvgMin": 12,
+    "mct": {
+      "intl_intl_same": 50,
+      "intl_intl_diff": 70,
+      "intl_domestic": 80
+    }
+  },
+  "LCA": {
+    "name": "Larnaca International",
+    "city": "Larnaca",
+    "country": "CY",
+    "size": "S",
+    "complexity": "low",
+    "efficiency": 0.92,
+    "terminals": ["main"],
+    "terminalTransferMin": { "same": 0 },
+    "securityAvgMin": 10,
+    "passportControlAvgMin": 8,
+    "mct": {
+      "intl_intl": 35,
+      "intl_domestic": 45
+    }
+  },
+  "PSA": {
+    "name": "Pisa Galileo Galilei",
+    "city": "Pisa",
+    "country": "IT",
+    "size": "S",
+    "complexity": "low",
+    "efficiency": 0.9,
+    "terminals": ["main"],
+    "terminalTransferMin": { "same": 0 },
+    "securityAvgMin": 10,
+    "passportControlAvgMin": 8,
+    "mct": { "intl_intl": 30 }
+  },
+  "FCO": {
+    "name": "Rome Fiumicino",
+    "city": "Rome",
+    "country": "IT",
+    "size": "L",
+    "complexity": "medium",
+    "efficiency": 0.78,
+    "terminals": ["1", "2", "3"],
+    "terminalTransferMin": { "same": 0, "1_to_3": 20 },
+    "securityAvgMin": 20,
+    "passportControlAvgMin": 18,
+    "mct": {
+      "intl_intl_same": 55,
+      "intl_intl_diff": 75,
+      "intl_domestic": 90
+    }
+  }
+}

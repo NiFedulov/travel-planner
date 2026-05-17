@@ -1,0 +1,131 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Profile {
+  id                   String   @id @default(cuid())
+  travelers            String   // JSON: Traveler[]
+  vacationStyle        String   @default("[]") // JSON: string[]
+  travelPace           String   @default("moderate")
+  flightClass          String   @default("economy")
+  maxLayovers          Int      @default(1)
+  health               String   @default("{}") // JSON: HealthInfo
+  accommodation        String   @default("{}") // JSON: AccommodationPrefs
+  passports            String   @default("[]") // JSON: Passport[]
+  existingVisas        String   @default("[]") // JSON: string[]
+  existingETAs         String   @default("[]") // JSON: string[]
+  hasIsraeliStamps     Boolean  @default(false)
+  criminalRecord       Boolean  @default(false)
+  travelInsurance      Boolean  @default(false)
+  budgetTotal          Float?
+  budgetCurrency       String   @default("EUR")
+  budgetBreakdown      String?  // JSON: BudgetBreakdown
+  cuisinePreferences   String   @default("[]") // JSON: string[]
+  languagesSpoken      String   @default("[]") // JSON: string[]
+  loyaltyPrograms      String   @default("[]") // JSON: LoyaltyProgram[]
+  visitedCountries     String   @default("[]") // JSON: string[]
+  favoriteDestinations String   @default("[]") // JSON: string[]
+  minorsTraveling      String?  // JSON: MinorsTravelingInfo
+  preferredAirlines    String   @default("[]") // JSON: string[]
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  trips                Trip[]
+}
+
+model Trip {
+  id                     String   @id @default(cuid())
+  profileId              String
+  profile                Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  name                   String
+  originCity             String
+  originCode             String
+  destinations           String   @default("[]") // JSON: Destination[]
+  startDate              DateTime
+  endDate                DateTime
+  datesFlexible          Boolean  @default(false)
+  visaRequirements       String?  // JSON: VisaRequirement[]
+  vaccinationReqs        String?  // JSON: VaccinationRequirement[]
+  entryRestrictions      String?  // JSON: EntryRestriction[]
+  selectedRoute          String?  // JSON: RouteOption
+  selectedAccommodations String?  // JSON: SelectedAccommodation[]
+  selectedCarRental      String?  // JSON: SelectedCarRental
+  aiRecommendations      String?  // JSON: AIRecommendation
+  estimatedTotal         Float?
+  status                 String   @default("planning")
+  notes                  String?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+}
+
+model MockFlight {
+  id             String  @id @default(cuid())
+  fromCode       String
+  fromCity       String
+  fromCountry    String
+  toCode         String
+  toCity         String
+  toCountry      String
+  airline        String
+  flightNumber   String
+  departureTime  String
+  arrivalTime    String
+  durationMin    Int
+  stops          Int     @default(0)
+  layoverCode    String?
+  layoverCity    String?
+  layoverCountry String?
+  layoverMin     Int?
+  transitVisa    Boolean @default(false)
+  priceEconomy   Float
+  priceBusiness  Float
+  priceFirst     Float
+  seatsLeft      Int     @default(50)
+  isStopover     Boolean @default(false)
+  stopoverNights Int?
+}
+
+model MockHotel {
+  id               String  @id @default(cuid())
+  city             String
+  country          String
+  name             String
+  stars            Int
+  type             String
+  pricePerNight    Float
+  petFriendly      Boolean @default(false)
+  wheelchairAccess Boolean @default(false)
+  breakfastIncl    Boolean @default(false)
+  parking          Boolean @default(false)
+  pool             Boolean @default(false)
+  gym              Boolean @default(false)
+  wifi             Boolean @default(true)
+  distanceCenter   Float
+  rating           Float
+  reviewCount      Int
+  imageSlug        String
+  address          String
+}
+
+model MockCar {
+  id                 String  @id @default(cuid())
+  city               String
+  country            String
+  company            String
+  model              String
+  category           String
+  seats              Int
+  automatic          Boolean @default(true)
+  pricePerDay        Float
+  crossBorderAllowed Boolean @default(true)
+  crossBorderFee     Float   @default(0)
+  unlimitedMiles     Boolean @default(true)
+  deposit            Float
+  minAge             Int     @default(21)
+  airportPickup      Boolean @default(true)
+  imageSlug          String
+}
