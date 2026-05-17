@@ -34,65 +34,145 @@ function OriginStep({ data, update }: { data: TripDraft; update: (p: Partial<Tri
   )
 }
 
-// Step 2: Destinations
-interface Destination { city: string; country: string; arrivalDate: string; departureDate: string }
+// Step 2: Destinations — free-form + AI parsing
+interface Destination { city: string; country: string; countryCode: string; region?: string; arrivalDate: string; departureDate: string }
+
+interface ParsedDest { city: string; country: string; countryCode: string; region?: string }
+
 function DestinationsStep({ data, update }: { data: TripDraft; update: (p: Partial<TripDraft>) => void }) {
   const dests = data.destinations
-  const [city, setCity] = useState('')
-  const [country, setCountry] = useState('')
-  const [arrival, setArrival] = useState('')
-  const [departure, setDeparture] = useState('')
+  const [freeText, setFreeText] = useState(data.travelWish ?? '')
+  const [parsing, setParsing] = useState(false)
+  const [parsed, setParsed] = useState<ParsedDest[]>([])
+  const [showManual, setShowManual] = useState(false)
+  const [manCity, setManCity] = useState('')
+  const [manCountry, setManCountry] = useState('')
 
-  function add() {
-    if (!city || !country || !arrival || !departure) return
-    update({ destinations: [...dests, { city: city.trim(), country: country.trim().toUpperCase(), arrivalDate: arrival, departureDate: departure }] })
-    setCity(''); setCountry(''); setArrival(''); setDeparture('')
+  async function parseWithAI() {
+    if (!freeText.trim()) return
+    setParsing(true)
+    try {
+      const res = await fetch('/api/ai/parse-destinations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: freeText }),
+      })
+      const { destinations: found } = await res.json()
+      setParsed(found ?? [])
+      // Auto-add parsed destinations without dates (user adds dates later)
+      const newDests = (found ?? []).map((d: ParsedDest) => ({
+        city: d.city, country: d.countryCode, countryCode: d.countryCode,
+        region: d.region, arrivalDate: '', departureDate: '',
+      }))
+      update({ destinations: newDests, travelWish: freeText })
+    } catch {
+      // silent
+    } finally {
+      setParsing(false)
+    }
   }
 
-  function remove(i: number) {
+  function removeDestination(i: number) {
     update({ destinations: dests.filter((_, idx) => idx !== i) })
   }
+
+  function updateDate(i: number, field: 'arrivalDate' | 'departureDate', val: string) {
+    update({ destinations: dests.map((d, idx) => idx === i ? { ...d, [field]: val } : d) })
+  }
+
+  function addManual() {
+    if (!manCity.trim() || !manCountry.trim()) return
+    update({ destinations: [...dests, { city: manCity.trim(), country: manCountry.trim().toUpperCase(), countryCode: manCountry.trim().toUpperCase(), arrivalDate: '', departureDate: '' }] })
+    setManCity(''); setManCountry('')
+  }
+
+  const SUGGESTIONS = [
+    'Italian lakes — Garda and Como',
+    'Tuscany: Florence, Siena, Pisa',
+    'Greek islands: Santorini and Mykonos',
+    'Road trip through Portugal',
+    'Alpine ski resorts in Austria',
+  ]
 
   return (
     <div className="space-y-5">
       <div>
         <h2 className="text-lg font-semibold text-gray-900 mb-1">Where do you want to go?</h2>
-        <p className="text-sm text-gray-500">Add one or more destinations</p>
+        <p className="text-sm text-gray-500">Describe your dream trip — AI will figure out the destinations</p>
       </div>
 
-      <div className="grid grid-cols-2 gap-2">
-        <div className="space-y-1">
-          <Label className="text-xs text-gray-500">City</Label>
-          <Input value={city} onChange={e => setCity(e.target.value)} placeholder="Florence" />
-        </div>
-        <div className="space-y-1">
-          <Label className="text-xs text-gray-500">Country code</Label>
-          <Input value={country} onChange={e => setCountry(e.target.value)} placeholder="IT" maxLength={2} className="uppercase" />
-        </div>
-        <div className="space-y-1">
-          <Label className="text-xs text-gray-500">Arrival</Label>
-          <Input type="date" value={arrival} onChange={e => setArrival(e.target.value)} />
-        </div>
-        <div className="space-y-1">
-          <Label className="text-xs text-gray-500">Departure</Label>
-          <Input type="date" value={departure} onChange={e => setDeparture(e.target.value)} />
-        </div>
-      </div>
-      <Button onClick={add} disabled={!city || !country || !arrival || !departure} className="w-full bg-teal-600 hover:bg-teal-700">
-        + Add destination
-      </Button>
-
+      {/* Free-form input */}
       <div className="space-y-2">
-        {dests.map((d, i) => (
-          <div key={i} className="flex items-center gap-3 p-3 rounded-xl bg-teal-50 border border-teal-200">
-            <MapPin className="h-4 w-4 text-teal-500 flex-shrink-0" />
-            <div className="flex-1">
-              <span className="font-medium text-sm text-teal-800">{d.city}, {d.country}</span>
-              <div className="text-xs text-teal-600">{new Date(d.arrivalDate).toLocaleDateString()} → {new Date(d.departureDate).toLocaleDateString()}</div>
+        <textarea
+          value={freeText}
+          onChange={e => { setFreeText(e.target.value); update({ travelWish: e.target.value }) }}
+          placeholder="e.g. Italian lakes — Garda and Como, plus a few days in Florence for art and food..."
+          rows={3}
+          className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-teal-400 focus:border-transparent placeholder:text-gray-400"
+        />
+        <div className="flex flex-wrap gap-1.5">
+          {SUGGESTIONS.map(s => (
+            <button key={s} onClick={() => { setFreeText(s); update({ travelWish: s }) }}
+              className="text-xs px-2.5 py-1 rounded-full bg-gray-100 text-gray-600 hover:bg-teal-100 hover:text-teal-700 transition-colors">
+              {s}
+            </button>
+          ))}
+        </div>
+        <Button
+          onClick={parseWithAI}
+          disabled={!freeText.trim() || parsing}
+          className="w-full bg-gradient-to-r from-teal-500 to-sky-500 hover:from-teal-600 hover:to-sky-600"
+        >
+          {parsing
+            ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Parsing...</>
+            : '✨ Extract destinations with AI'}
+        </Button>
+      </div>
+
+      {/* Parsed / added destinations with date inputs */}
+      {dests.length > 0 && (
+        <div className="space-y-2">
+          <Label className="text-sm font-semibold text-gray-700">Destinations ({dests.length}) — add dates</Label>
+          {dests.map((d, i) => (
+            <div key={i} className="p-3 rounded-xl bg-teal-50 border border-teal-200 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <MapPin className="h-4 w-4 text-teal-500 flex-shrink-0" />
+                  <div>
+                    <span className="font-medium text-sm text-teal-800">{d.city}</span>
+                    {d.region && <span className="text-xs text-teal-600 ml-1">· {d.region}</span>}
+                    <span className="text-xs text-teal-500 ml-1">({d.countryCode || d.country})</span>
+                  </div>
+                </div>
+                <button onClick={() => removeDestination(i)} className="text-teal-400 hover:text-red-500 text-lg leading-none">×</button>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-0.5">
+                  <Label className="text-xs text-gray-400">Arrival</Label>
+                  <Input type="date" value={d.arrivalDate} onChange={e => updateDate(i, 'arrivalDate', e.target.value)} className="h-8 text-xs" />
+                </div>
+                <div className="space-y-0.5">
+                  <Label className="text-xs text-gray-400">Departure</Label>
+                  <Input type="date" value={d.departureDate} onChange={e => updateDate(i, 'departureDate', e.target.value)} className="h-8 text-xs" />
+                </div>
+              </div>
             </div>
-            <button onClick={() => remove(i)} className="text-teal-400 hover:text-red-500 text-lg leading-none">×</button>
+          ))}
+        </div>
+      )}
+
+      {/* Manual add */}
+      <div>
+        <button onClick={() => setShowManual(v => !v)} className="text-xs text-gray-500 underline">
+          {showManual ? 'Hide' : '+ Add destination manually'}
+        </button>
+        {showManual && (
+          <div className="flex gap-2 mt-2">
+            <Input value={manCity} onChange={e => setManCity(e.target.value)} placeholder="City / place" className="flex-1" />
+            <Input value={manCountry} onChange={e => setManCountry(e.target.value)} placeholder="IT" maxLength={2} className="w-16 uppercase" />
+            <Button onClick={addManual} size="sm" className="bg-teal-600 hover:bg-teal-700">Add</Button>
           </div>
-        ))}
+        )}
       </div>
     </div>
   )
@@ -289,7 +369,9 @@ function SummaryStep({ data, aiResults, recommendations, loadingRecs, getRecomme
         </div>
         <div className="flex justify-between">
           <span className="text-gray-500">Destinations</span>
-          <span className="font-medium">{data.destinations.map(d => d.city).join(', ')}</span>
+          <span className="font-medium text-right max-w-[60%]">
+            {data.destinations.length > 0 ? data.destinations.map(d => d.city).join(', ') : data.travelWish ?? '—'}
+          </span>
         </div>
         <div className="flex justify-between">
           <span className="text-gray-500">Dates</span>
@@ -368,6 +450,7 @@ interface TripDraft {
   startDate: string
   endDate: string
   datesFlexible: boolean
+  travelWish?: string
 }
 
 const STEPS = [
@@ -400,7 +483,16 @@ export default function NewTripPage() {
     setChecking(true)
     setChecksDone(false)
     try {
-      const destObjects = data.destinations.map(d => ({ country: d.city, countryCode: d.country }))
+      // Load real passport data from profile
+      const profileRes = await fetch('/api/profile')
+      const profile = profileRes.ok ? await profileRes.json() : null
+      const passports = profile?.passports ?? []
+      const existingVisas = profile?.existingVisas ?? []
+
+      const destObjects = data.destinations.map(d => ({
+        country: d.city,
+        countryCode: d.countryCode || d.country,
+      }))
       const startDate = data.startDate || data.destinations[0]?.arrivalDate || ''
       const endDate = data.endDate || data.destinations[data.destinations.length - 1]?.departureDate || ''
 
@@ -408,7 +500,7 @@ export default function NewTripPage() {
         fetch('/api/ai/visa-check', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ passports: [], destinations: destObjects, startDate, existingVisas: [] }),
+          body: JSON.stringify({ passports, destinations: destObjects, startDate, existingVisas }),
         }),
         fetch('/api/ai/health-check', {
           method: 'POST',
@@ -472,7 +564,7 @@ export default function NewTripPage() {
 
   function canProceed() {
     if (step === 0) return !!data.originCity.trim()
-    if (step === 1) return data.destinations.length > 0
+    if (step === 1) return data.destinations.length > 0 || !!data.travelWish?.trim()
     if (step === 2) return !!data.startDate && !!data.endDate
     return true
   }
