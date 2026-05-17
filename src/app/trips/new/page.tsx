@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { ChevronLeft, ChevronRight, Check, MapPin, Calendar, AlertCircle, Loader2 } from 'lucide-react'
@@ -47,16 +47,9 @@ interface ParsedDestResult {
   stayDays?: number; suggestedArrival?: string; suggestedDeparture?: string
 }
 
-const INSPIRATION = [
-  { emoji: '🏖️', label: 'Italian lakes — Garda and Como' },
-  { emoji: '🏛️', label: 'Tuscany: Florence, Siena, Pisa' },
-  { emoji: '🌊', label: 'Greek islands: Santorini and Mykonos' },
-  { emoji: '🍷', label: 'Wine tour through Bordeaux and Provence' },
-  { emoji: '🏔️', label: 'Swiss Alps: Zermatt, Interlaken, Lucerne' },
-  { emoji: '🏰', label: 'Eastern Europe: Prague, Vienna, Budapest' },
-  { emoji: '🌿', label: 'Road trip through the Algarve, Portugal' },
-  { emoji: '🎭', label: 'Cultural tour: Rome, Florence, Venice' },
-]
+interface SuggestedTag {
+  city: string; country: string; countryCode: string; emoji: string
+}
 
 function DestinationsStep({ data, update }: { data: TripDraft; update: (p: Partial<TripDraft>) => void }) {
   const dests = data.destinations
@@ -68,20 +61,57 @@ function DestinationsStep({ data, update }: { data: TripDraft; update: (p: Parti
   const [showManual, setShowManual] = useState(false)
   const [manCity, setManCity] = useState('')
   const [manCountry, setManCountry] = useState('')
+  const [suggestedTags, setSuggestedTags] = useState<SuggestedTag[]>([])
+  const [selectedCities, setSelectedCities] = useState<Set<string>>(new Set())
+  const [analyzingTags, setAnalyzingTags] = useState(false)
 
   const totalDays = tripStart && tripEnd
     ? Math.round((new Date(tripEnd).getTime() - new Date(tripStart).getTime()) / 86400000)
     : null
 
+  // Debounce: analyze text → suggest destination tags
+  useEffect(() => {
+    setSuggestedTags([])
+    setSelectedCities(new Set())
+    if (!freeText.trim() || freeText.trim().length < 15) return
+    const t = setTimeout(async () => {
+      setAnalyzingTags(true)
+      try {
+        const res = await fetch('/api/ai/suggest-tags', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: freeText }),
+        })
+        const result = await res.json()
+        const tags: SuggestedTag[] = result.tags ?? []
+        setSuggestedTags(tags)
+        setSelectedCities(new Set(tags.map(t => t.city)))
+      } catch { /* silent */ }
+      finally { setAnalyzingTags(false) }
+    }, 800)
+    return () => clearTimeout(t)
+  }, [freeText])
+
+  function toggleTag(city: string) {
+    setSelectedCities(prev => {
+      const next = new Set(prev)
+      next.has(city) ? next.delete(city) : next.add(city)
+      return next
+    })
+  }
+
   async function parseWithAI() {
-    if (!freeText.trim()) return
+    if (!freeText.trim() || selectedCities.size === 0) return
     setParsing(true)
     setInsight('')
+    const selectedTags = suggestedTags.filter(t => selectedCities.has(t.city))
+    const hint = selectedTags.map(t => `${t.city}, ${t.country}`).join(' · ')
+    const prompt = hint ? `${freeText}\n\nFocus on these specific destinations: ${hint}` : freeText
     try {
       const res = await fetch('/api/ai/parse-destinations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: freeText, startDate: tripStart || undefined, endDate: tripEnd || undefined }),
+        body: JSON.stringify({ text: prompt, startDate: tripStart || undefined, endDate: tripEnd || undefined }),
       })
       const result = await res.json()
       const found: ParsedDestResult[] = result.destinations ?? []
@@ -94,11 +124,8 @@ function DestinationsStep({ data, update }: { data: TripDraft; update: (p: Parti
         departureDate: d.suggestedDeparture ?? '',
       }))
       update({ destinations: newDests, travelWish: freeText, startDate: tripStart, endDate: tripEnd })
-    } catch {
-      // silent
-    } finally {
-      setParsing(false)
-    }
+    } catch { /* silent */ }
+    finally { setParsing(false) }
   }
 
   function removeDestination(i: number) {
@@ -115,11 +142,7 @@ function DestinationsStep({ data, update }: { data: TripDraft; update: (p: Parti
     setManCity(''); setManCountry('')
   }
 
-  function appendTag(label: string) {
-    const newText = freeText ? `${freeText.trimEnd()}, ${label.toLowerCase()}` : label
-    setFreeText(newText)
-    update({ travelWish: newText })
-  }
+  const canBuild = freeText.trim().length > 0 && selectedCities.size > 0 && !parsing
 
   return (
     <div className="space-y-5">
@@ -146,7 +169,7 @@ function DestinationsStep({ data, update }: { data: TripDraft; update: (p: Parti
       </div>
 
       {/* Main conversational input */}
-      <div className="space-y-2">
+      <div className="space-y-3">
         <textarea
           value={freeText}
           onChange={e => { setFreeText(e.target.value); update({ travelWish: e.target.value }) }}
@@ -155,24 +178,47 @@ function DestinationsStep({ data, update }: { data: TripDraft; update: (p: Parti
           className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-teal-400 focus:border-transparent placeholder:text-gray-400 leading-relaxed"
         />
 
-        {/* Inspiration tags */}
-        <div>
-          <p className="text-xs text-gray-400 mb-1.5">Quick inspiration — click to add:</p>
-          <div className="flex flex-wrap gap-1.5">
-            {INSPIRATION.map(s => (
-              <button key={s.label} onClick={() => appendTag(s.label)}
-                className="text-xs px-2.5 py-1 rounded-full bg-white border border-gray-200 text-gray-600 hover:border-teal-400 hover:bg-teal-50 hover:text-teal-700 transition-all flex items-center gap-1">
-                <span>{s.emoji}</span><span>{s.label}</span>
-              </button>
-            ))}
+        {/* AI-suggested destination tags */}
+        {analyzingTags && (
+          <div className="flex items-center gap-2 text-xs text-gray-400">
+            <Loader2 className="h-3 w-3 animate-spin" />
+            <span>Analysing your wishes...</span>
           </div>
-        </div>
+        )}
+        {suggestedTags.length > 0 && !analyzingTags && (
+          <div className="space-y-2">
+            <p className="text-xs text-gray-500 font-medium">I found these destinations — select the ones you want to visit:</p>
+            <div className="flex flex-wrap gap-2">
+              {suggestedTags.map(tag => {
+                const selected = selectedCities.has(tag.city)
+                return (
+                  <button
+                    key={tag.city}
+                    onClick={() => toggleTag(tag.city)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                      selected
+                        ? 'bg-teal-500 border-teal-500 text-white shadow-sm'
+                        : 'bg-white border-gray-200 text-gray-500 hover:border-teal-300 hover:text-teal-600'
+                    }`}
+                  >
+                    <span>{tag.emoji}</span>
+                    <span>{tag.city}</span>
+                    {selected && <span className="opacity-80">✓</span>}
+                  </button>
+                )
+              })}
+            </div>
+            <p className="text-xs text-gray-400">{selectedCities.size} destination{selectedCities.size !== 1 ? 's' : ''} selected — deselect any you don&apos;t want</p>
+          </div>
+        )}
 
-        <Button onClick={parseWithAI} disabled={!freeText.trim() || parsing}
-          className="w-full bg-gradient-to-r from-teal-500 to-sky-500 hover:from-teal-600 hover:to-sky-600 font-semibold py-5">
+        <Button onClick={parseWithAI} disabled={!canBuild}
+          className="w-full bg-gradient-to-r from-teal-500 to-sky-500 hover:from-teal-600 hover:to-sky-600 font-semibold py-5 disabled:opacity-40">
           {parsing
             ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Planning your itinerary...</>
-            : '✨ Build my itinerary'}
+            : suggestedTags.length === 0
+              ? '✨ Build my itinerary'
+              : `✨ Build itinerary for ${selectedCities.size} place${selectedCities.size !== 1 ? 's' : ''}`}
         </Button>
       </div>
 
