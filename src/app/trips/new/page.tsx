@@ -218,14 +218,14 @@ function AIChecksStep({ data, aiResults, runChecks, checksDone, checking }: {
             🛂 Visa Requirements
           </Label>
           {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-          {(aiResults.visa.requirements ?? []).map((req: any, i: number) => (
+          {(aiResults.visa.result ?? []).map((req: any, i: number) => (
             <div key={i} className={`p-3 rounded-xl border text-sm ${
-              req.visaRequired ? 'bg-orange-50 border-orange-200' : 'bg-green-50 border-green-200'
+              req.required ? 'bg-orange-50 border-orange-200' : 'bg-green-50 border-green-200'
             }`}>
               <div className="flex items-center justify-between mb-1">
-                <span className="font-medium">{req.destination}</span>
-                <Badge className={req.visaRequired ? 'bg-orange-100 text-orange-700' : 'bg-green-100 text-green-700'}>
-                  {req.visaRequired ? 'Visa required' : 'No visa'}
+                <span className="font-medium">{req.country}</span>
+                <Badge className={req.required ? 'bg-orange-100 text-orange-700' : 'bg-green-100 text-green-700'}>
+                  {req.required ? 'Visa required' : 'No visa'}
                 </Badge>
               </div>
               {req.notes && <p className="text-xs text-gray-600">{req.notes}</p>}
@@ -248,17 +248,15 @@ function AIChecksStep({ data, aiResults, runChecks, checksDone, checking }: {
             💉 Health Requirements
           </Label>
           {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-          {(aiResults.health.requirements ?? []).map((req: any, i: number) => (
+          {(aiResults.health.result ?? []).map((req: any, i: number) => (
             <div key={i} className={`p-3 rounded-xl border text-sm ${
               req.required ? 'bg-yellow-50 border-yellow-200' : 'bg-gray-50 border-gray-200'
             }`}>
               <div className="flex items-center justify-between mb-1">
-                <span className="font-medium">{req.destination}</span>
-                {req.required && <Badge className="bg-yellow-100 text-yellow-700">Action needed</Badge>}
+                <span className="font-medium">{req.vaccine ?? req.country}</span>
+                {req.required && <Badge className="bg-yellow-100 text-yellow-700">Required</Badge>}
+                {!req.required && req.recommended && <Badge className="bg-blue-100 text-blue-700">Recommended</Badge>}
               </div>
-              {req.vaccinations?.length > 0 && (
-                <p className="text-xs text-gray-600">Vaccines: {req.vaccinations.join(', ')}</p>
-              )}
               {req.notes && <p className="text-xs text-gray-600 mt-1">{req.notes}</p>}
             </div>
           ))}
@@ -402,16 +400,20 @@ export default function NewTripPage() {
     setChecking(true)
     setChecksDone(false)
     try {
+      const destObjects = data.destinations.map(d => ({ country: d.city, countryCode: d.country }))
+      const startDate = data.startDate || data.destinations[0]?.arrivalDate || ''
+      const endDate = data.endDate || data.destinations[data.destinations.length - 1]?.departureDate || ''
+
       const [visaRes, healthRes] = await Promise.all([
         fetch('/api/ai/visa-check', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ passports: [], destinations: data.destinations.map(d => d.country) }),
+          body: JSON.stringify({ passports: [], destinations: destObjects, startDate, existingVisas: [] }),
         }),
         fetch('/api/ai/health-check', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ destinations: data.destinations.map(d => d.country), travelers: [] }),
+          body: JSON.stringify({ destinations: destObjects, startDate, endDate, checkType: 'health' }),
         }),
       ])
       const [visa, health] = await Promise.all([visaRes.json(), healthRes.json()])
