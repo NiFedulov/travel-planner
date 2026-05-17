@@ -1,36 +1,116 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# TravelPlan AI
 
-## Getting Started
+AI-powered travel planner built with Next.js 16, Claude API, and SQLite.
 
-First, run the development server:
+## Features
+
+- **Tourist profile wizard** — 9 steps: travelers, health & dietary, vacation style, accommodation, budget, flights, documents, loyalty programs, cuisine & languages
+- **Trip planning wizard** — origin, destinations, dates, parallel AI visa & health checks, AI recommendations
+- **Flight scoring** — direct, layover, and overnight stopover routes with MCT calculation and Schengen transit check
+- **Accommodation & car rental** — mock data filtered by destination, multi-select, cross-border car flag
+- **AI chat assistant** — floating SSE streaming panel powered by Claude Haiku
+
+## Tech stack
+
+| Layer | Choice |
+|---|---|
+| Framework | Next.js 16.2.6 App Router, TypeScript |
+| Styling | Tailwind CSS v4 + shadcn/ui |
+| Database | SQLite via Prisma 7 + `@prisma/adapter-libsql` |
+| AI | `@anthropic-ai/sdk` — Claude Haiku 4.5 / Sonnet 4.6 |
+| State | Zustand |
+
+## Getting started
+
+### 1. Install dependencies
+
+```bash
+cd travel-planner
+npm install
+```
+
+### 2. Set up environment
+
+```bash
+cp .env.example .env.local
+```
+
+Edit `.env.local` and add your Anthropic API key:
+
+```
+ANTHROPIC_API_KEY=sk-ant-...
+```
+
+Get a key at [console.anthropic.com](https://console.anthropic.com).
+
+### 3. Set up the database
+
+```bash
+npx prisma migrate dev --name init
+npm run db:seed
+```
+
+This creates `dev.db` with 17 mock flights (Cyprus → Italy routes including stopover via Istanbul), 25 hotels (Florence, Tuscany, Lake Como, Milan, Istanbul), and 13 rental cars.
+
+### 4. Run the dev server
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Usage flow
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. **Create your profile** — click Profile in the navbar, fill all 9 steps, save
+2. **Plan a trip** — click New Trip, enter origin (e.g. `Limassol, CY`), add destinations (Florence + Lake Como), set dates
+3. **AI checks** — on step 4, click "Run AI checks" to get visa & vaccination requirements
+4. **Choose flights** — on the trip detail page, open Flights → AI Optimize
+5. **Book accommodation** — open Accommodation, select hotels for each destination
+6. **Add car rental** — open Car Rental, filter by cross-border if visiting multiple countries
 
-## Learn More
+## Project structure
 
-To learn more about Next.js, take a look at the following resources:
+```
+travel-planner/
+├── prisma/
+│   ├── schema.prisma          # 5 models: Profile, Trip, MockFlight, MockHotel, MockCar
+│   └── seed.ts                # 17 flights, 25 hotels, 13 cars
+├── src/
+│   ├── app/
+│   │   ├── page.tsx           # Dashboard
+│   │   ├── profile/page.tsx   # 9-step profile wizard
+│   │   ├── trips/
+│   │   │   ├── page.tsx       # Trip list
+│   │   │   ├── new/page.tsx   # New trip wizard (5 steps)
+│   │   │   └── [id]/
+│   │   │       ├── page.tsx          # Trip detail
+│   │   │       ├── route/page.tsx    # Flight selection
+│   │   │       ├── accommodation/    # Hotel selection
+│   │   │       └── car-rental/       # Car selection
+│   │   └── api/
+│   │       ├── profile/       # CRUD profile
+│   │       ├── trips/         # CRUD trips
+│   │       ├── mock/          # flights / hotels / cars
+│   │       └── ai/            # visa-check, health-check, recommendations, route-optimize, chat
+│   └── lib/
+│       ├── ai/                # Anthropic client + prompt builders
+│       ├── data/              # transitRules.json, airports.json, entryRequirements.json
+│       ├── types/             # profile.ts, trip.ts
+│       └── utils/             # flightScoring.ts, mct.ts, transitCheck.ts
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Environment variables
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+| Variable | Required | Description |
+|---|---|---|
+| `ANTHROPIC_API_KEY` | Yes (for AI features) | Your Anthropic API key |
 
-## Deploy on Vercel
+## Scripts
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+npm run dev        # Start dev server
+npm run build      # Production build
+npm run db:seed    # Seed mock data into SQLite
+npx prisma studio  # Browse database in browser
+```
