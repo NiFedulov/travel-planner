@@ -34,7 +34,7 @@ function OriginStep({ data, update }: { data: TripDraft; update: (p: Partial<Tri
   )
 }
 
-// Step 2: Destinations — travel agent style
+// Step 2: Destinations
 interface Destination {
   city: string; country: string; countryCode: string
   region?: string; emoji?: string; highlight?: string; bestFor?: string
@@ -51,16 +51,84 @@ interface SuggestedTag {
   city: string; country: string; countryCode: string; emoji: string
 }
 
+interface DealTip {
+  hasDeal: boolean; tip: string | null; alternative?: string; saving?: string; reason?: string
+}
+
+// Shared destination card list used in both modes
+function DestinationCards({ dests, totalDays, onRemove, onUpdateDate }: {
+  dests: Destination[]; totalDays: number | null
+  onRemove: (i: number) => void
+  onUpdateDate: (i: number, f: 'arrivalDate' | 'departureDate', v: string) => void
+}) {
+  if (!dests.length) return null
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <Label className="text-sm font-semibold text-gray-700">Your destinations</Label>
+        {totalDays && (
+          <span className="text-xs text-gray-400">
+            {dests.reduce((s, d) => s + (d.stayDays ?? 0), 0)} of {totalDays} days planned
+          </span>
+        )}
+      </div>
+      {dests.map((d, i) => (
+        <div key={i} className="rounded-xl border border-gray-200 bg-white overflow-hidden shadow-sm">
+          <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-gray-50 to-white">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">{d.emoji ?? '📍'}</span>
+              <div>
+                <div className="font-semibold text-gray-900 text-sm">{d.city}</div>
+                <div className="text-xs text-gray-500">
+                  {d.region && `${d.region} · `}{d.countryCode}
+                  {d.stayDays && <span className="ml-1 text-teal-600 font-medium">· {d.stayDays} days</span>}
+                </div>
+              </div>
+            </div>
+            <button onClick={() => onRemove(i)} className="text-gray-300 hover:text-red-400 transition-colors text-lg leading-none">✕</button>
+          </div>
+          {(d.highlight || d.bestFor) && (
+            <div className="px-4 py-2 border-t border-gray-100 space-y-0.5">
+              {d.highlight && <p className="text-xs text-gray-600">{d.highlight}</p>}
+              {d.bestFor && <p className="text-xs text-teal-600">Best for: {d.bestFor}</p>}
+            </div>
+          )}
+          <div className="grid grid-cols-2 gap-2 px-4 py-3 border-t border-gray-100 bg-gray-50/50">
+            <div className="space-y-1">
+              <Label className="text-xs text-gray-400">Arrival</Label>
+              <Input type="date" value={d.arrivalDate} onChange={e => onUpdateDate(i, 'arrivalDate', e.target.value)} className="h-8 text-xs bg-white" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-gray-400">Departure</Label>
+              <Input type="date" value={d.departureDate} onChange={e => onUpdateDate(i, 'departureDate', e.target.value)} className="h-8 text-xs bg-white" />
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 function DestinationsStep({ data, update }: { data: TripDraft; update: (p: Partial<TripDraft>) => void }) {
   const dests = data.destinations
-  const [freeText, setFreeText] = useState(data.travelWish ?? '')
+  const [mode, setMode] = useState<'know' | 'explore' | null>(null)
+
+  // Shared state
   const [tripStart, setTripStart] = useState(data.startDate ?? '')
   const [tripEnd, setTripEnd] = useState(data.endDate ?? '')
+  const [dealTip, setDealTip] = useState<DealTip | null>(null)
+  const [loadingDeal, setLoadingDeal] = useState(false)
+
+  // "Know" mode state
+  const [knowCity, setKnowCity] = useState('')
+  const [knowCountry, setKnowCountry] = useState('')
+  const [knowArrival, setKnowArrival] = useState('')
+  const [knowDeparture, setKnowDeparture] = useState('')
+
+  // "Explore" mode state
+  const [freeText, setFreeText] = useState(data.travelWish ?? '')
   const [parsing, setParsing] = useState(false)
   const [insight, setInsight] = useState('')
-  const [showManual, setShowManual] = useState(false)
-  const [manCity, setManCity] = useState('')
-  const [manCountry, setManCountry] = useState('')
   const [suggestedTags, setSuggestedTags] = useState<SuggestedTag[]>([])
   const [selectedCities, setSelectedCities] = useState<Set<string>>(new Set())
   const [analyzingTags, setAnalyzingTags] = useState(false)
@@ -69,10 +137,33 @@ function DestinationsStep({ data, update }: { data: TripDraft; update: (p: Parti
     ? Math.round((new Date(tripEnd).getTime() - new Date(tripStart).getTime()) / 86400000)
     : null
 
-  // Debounce: analyze text → suggest destination tags
+  // Fetch deal tip when destinations + dates are set
   useEffect(() => {
-    setSuggestedTags([])
-    setSelectedCities(new Set())
+    if (!dests.length || !tripStart) { setDealTip(null); return }
+    const t = setTimeout(async () => {
+      setLoadingDeal(true)
+      try {
+        const res = await fetch('/api/ai/deals-tip', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            origin: data.originCity,
+            destinations: dests.map(d => ({ city: d.city, country: d.country })),
+            startDate: tripStart,
+            endDate: tripEnd,
+          }),
+        })
+        const result = await res.json()
+        setDealTip(result.hasDeal ? result : null)
+      } catch { /* silent */ }
+      finally { setLoadingDeal(false) }
+    }, 600)
+    return () => clearTimeout(t)
+  }, [dests.length, tripStart, tripEnd]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Debounce: analyze text → suggest tags (explore mode)
+  useEffect(() => {
+    setSuggestedTags([]); setSelectedCities(new Set())
     if (!freeText.trim() || freeText.trim().length < 15) return
     const t = setTimeout(async () => {
       setAnalyzingTags(true)
@@ -93,17 +184,27 @@ function DestinationsStep({ data, update }: { data: TripDraft; update: (p: Parti
   }, [freeText])
 
   function toggleTag(city: string) {
-    setSelectedCities(prev => {
-      const next = new Set(prev)
-      next.has(city) ? next.delete(city) : next.add(city)
-      return next
-    })
+    setSelectedCities(prev => { const n = new Set(prev); n.has(city) ? n.delete(city) : n.add(city); return n })
+  }
+
+  function removeDestination(i: number) { update({ destinations: dests.filter((_, idx) => idx !== i) }) }
+  function updateDate(i: number, field: 'arrivalDate' | 'departureDate', val: string) {
+    update({ destinations: dests.map((d, idx) => idx === i ? { ...d, [field]: val } : d) })
+  }
+
+  function addKnownPlace() {
+    if (!knowCity.trim() || !knowCountry.trim()) return
+    update({ destinations: [...dests, {
+      city: knowCity.trim(), country: knowCountry.trim().toUpperCase(),
+      countryCode: knowCountry.trim().toUpperCase(),
+      arrivalDate: knowArrival, departureDate: knowDeparture,
+    }] })
+    setKnowCity(''); setKnowCountry(''); setKnowArrival(''); setKnowDeparture('')
   }
 
   async function parseWithAI() {
     if (!freeText.trim() || selectedCities.size === 0) return
-    setParsing(true)
-    setInsight('')
+    setParsing(true); setInsight('')
     const selectedTags = suggestedTags.filter(t => selectedCities.has(t.city))
     const hint = selectedTags.map(t => `${t.city}, ${t.country}`).join(' · ')
     const prompt = hint ? `${freeText}\n\nFocus on these specific destinations: ${hint}` : freeText
@@ -114,9 +215,8 @@ function DestinationsStep({ data, update }: { data: TripDraft; update: (p: Parti
         body: JSON.stringify({ text: prompt, startDate: tripStart || undefined, endDate: tripEnd || undefined }),
       })
       const result = await res.json()
-      const found: ParsedDestResult[] = result.destinations ?? []
       setInsight(result.insight ?? '')
-      const newDests = found.map(d => ({
+      const newDests = (result.destinations ?? []).map((d: ParsedDestResult) => ({
         city: d.city, country: d.countryCode, countryCode: d.countryCode,
         region: d.region, emoji: d.emoji, highlight: d.highlight, bestFor: d.bestFor,
         stayDays: d.stayDays,
@@ -128,171 +228,201 @@ function DestinationsStep({ data, update }: { data: TripDraft; update: (p: Parti
     finally { setParsing(false) }
   }
 
-  function removeDestination(i: number) {
-    update({ destinations: dests.filter((_, idx) => idx !== i) })
-  }
+  const dateBar = (
+    <div className="flex gap-2 items-center bg-gray-50 rounded-xl p-3">
+      <Calendar className="h-4 w-4 text-gray-400 flex-shrink-0" />
+      <div className="flex gap-2 flex-1">
+        <Input type="date" value={tripStart}
+          onChange={e => { setTripStart(e.target.value); update({ startDate: e.target.value }) }}
+          className="h-8 text-xs flex-1" />
+        <span className="self-center text-gray-400 text-xs">→</span>
+        <Input type="date" value={tripEnd}
+          onChange={e => { setTripEnd(e.target.value); update({ endDate: e.target.value }) }}
+          className="h-8 text-xs flex-1" />
+      </div>
+      {totalDays && <span className="text-xs font-semibold text-teal-600 whitespace-nowrap">{totalDays} days</span>}
+    </div>
+  )
 
-  function updateDate(i: number, field: 'arrivalDate' | 'departureDate', val: string) {
-    update({ destinations: dests.map((d, idx) => idx === i ? { ...d, [field]: val } : d) })
-  }
-
-  function addManual() {
-    if (!manCity.trim() || !manCountry.trim()) return
-    update({ destinations: [...dests, { city: manCity.trim(), country: manCountry.trim().toUpperCase(), countryCode: manCountry.trim().toUpperCase(), arrivalDate: '', departureDate: '' }] })
-    setManCity(''); setManCountry('')
-  }
-
-  const canBuild = freeText.trim().length > 0 && selectedCities.size > 0 && !parsing
-
-  return (
+  // — Mode selector —
+  if (!mode) return (
     <div className="space-y-5">
       <div>
-        <h2 className="text-lg font-semibold text-gray-900 mb-1">Tell me about your dream trip ✈️</h2>
-        <p className="text-sm text-gray-500">Describe what you&apos;re looking for — I&apos;ll build the perfect itinerary</p>
+        <h2 className="text-lg font-semibold text-gray-900 mb-1">Where do you want to go? 🗺️</h2>
+        <p className="text-sm text-gray-500">Tell us how much you already know about your trip</p>
       </div>
-
-      {/* Trip dates — compact */}
-      <div className="flex gap-2 items-center bg-gray-50 rounded-xl p-3">
-        <Calendar className="h-4 w-4 text-gray-400 flex-shrink-0" />
-        <div className="flex gap-2 flex-1">
-          <Input type="date" value={tripStart}
-            onChange={e => { setTripStart(e.target.value); update({ startDate: e.target.value }) }}
-            className="h-8 text-xs flex-1" />
-          <span className="self-center text-gray-400 text-xs">→</span>
-          <Input type="date" value={tripEnd}
-            onChange={e => { setTripEnd(e.target.value); update({ endDate: e.target.value }) }}
-            className="h-8 text-xs flex-1" />
-        </div>
-        {totalDays && (
-          <span className="text-xs font-semibold text-teal-600 whitespace-nowrap">{totalDays} days</span>
-        )}
-      </div>
-
-      {/* Main conversational input */}
-      <div className="space-y-3">
-        <textarea
-          value={freeText}
-          onChange={e => { setFreeText(e.target.value); update({ travelWish: e.target.value }) }}
-          placeholder={'Describe your ideal holiday...\n\nFor example: "I want to relax by a lake, explore medieval towns, eat amazing Italian food. Not too much walking — we have a 3-year old with us."'}
-          rows={4}
-          className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-teal-400 focus:border-transparent placeholder:text-gray-400 leading-relaxed"
-        />
-
-        {/* AI-suggested destination tags */}
-        {analyzingTags && (
-          <div className="flex items-center gap-2 text-xs text-gray-400">
-            <Loader2 className="h-3 w-3 animate-spin" />
-            <span>Analysing your wishes...</span>
-          </div>
-        )}
-        {suggestedTags.length > 0 && !analyzingTags && (
-          <div className="space-y-2">
-            <p className="text-xs text-gray-500 font-medium">I found these destinations — select the ones you want to visit:</p>
-            <div className="flex flex-wrap gap-2">
-              {suggestedTags.map(tag => {
-                const selected = selectedCities.has(tag.city)
-                return (
-                  <button
-                    key={tag.city}
-                    onClick={() => toggleTag(tag.city)}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
-                      selected
-                        ? 'bg-teal-500 border-teal-500 text-white shadow-sm'
-                        : 'bg-white border-gray-200 text-gray-500 hover:border-teal-300 hover:text-teal-600'
-                    }`}
-                  >
-                    <span>{tag.emoji}</span>
-                    <span>{tag.city}</span>
-                    {selected && <span className="opacity-80">✓</span>}
-                  </button>
-                )
-              })}
+      <div className="grid grid-cols-1 gap-3">
+        <button onClick={() => setMode('know')}
+          className="group text-left rounded-2xl border-2 border-gray-200 hover:border-teal-400 bg-white hover:bg-teal-50 p-5 transition-all">
+          <div className="flex items-start gap-4">
+            <span className="text-3xl">🗓️</span>
+            <div>
+              <div className="font-semibold text-gray-900 group-hover:text-teal-700">I know exactly where I&apos;m going</div>
+              <div className="text-sm text-gray-500 mt-0.5">I have specific cities and dates in mind — let me enter them directly</div>
             </div>
-            <p className="text-xs text-gray-400">{selectedCities.size} destination{selectedCities.size !== 1 ? 's' : ''} selected — deselect any you don&apos;t want</p>
           </div>
-        )}
-
-        <Button onClick={parseWithAI} disabled={!canBuild}
-          className="w-full bg-gradient-to-r from-teal-500 to-sky-500 hover:from-teal-600 hover:to-sky-600 font-semibold py-5 disabled:opacity-40">
-          {parsing
-            ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Planning your itinerary...</>
-            : suggestedTags.length === 0
-              ? '✨ Build my itinerary'
-              : `✨ Build itinerary for ${selectedCities.size} place${selectedCities.size !== 1 ? 's' : ''}`}
-        </Button>
-      </div>
-
-      {/* AI insight */}
-      {insight && (
-        <div className="flex items-start gap-2 bg-gradient-to-r from-teal-50 to-sky-50 rounded-xl p-3 border border-teal-100">
-          <span className="text-lg flex-shrink-0">🧳</span>
-          <p className="text-sm text-teal-800 italic">{insight}</p>
-        </div>
-      )}
-
-      {/* Destination cards */}
-      {dests.length > 0 && (
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <Label className="text-sm font-semibold text-gray-700">Your itinerary</Label>
-            {totalDays && (
-              <span className="text-xs text-gray-400">
-                {dests.reduce((s, d) => s + (d.stayDays ?? 0), 0)} of {totalDays} days planned
-              </span>
-            )}
-          </div>
-          {dests.map((d, i) => (
-            <div key={i} className="rounded-xl border border-gray-200 bg-white overflow-hidden shadow-sm">
-              <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-gray-50 to-white">
-                <div className="flex items-center gap-3">
-                  <span className="text-2xl">{d.emoji ?? '📍'}</span>
-                  <div>
-                    <div className="font-semibold text-gray-900 text-sm">{d.city}</div>
-                    <div className="text-xs text-gray-500">
-                      {d.region && `${d.region} · `}{d.countryCode}
-                      {d.stayDays && <span className="ml-1 text-teal-600 font-medium">· {d.stayDays} days</span>}
-                    </div>
-                  </div>
-                </div>
-                <button onClick={() => removeDestination(i)} className="text-gray-300 hover:text-red-400 transition-colors text-lg leading-none">✕</button>
-              </div>
-              {(d.highlight || d.bestFor) && (
-                <div className="px-4 py-2 border-t border-gray-100 space-y-0.5">
-                  {d.highlight && <p className="text-xs text-gray-600">{d.highlight}</p>}
-                  {d.bestFor && <p className="text-xs text-teal-600">Best for: {d.bestFor}</p>}
-                </div>
-              )}
-              <div className="grid grid-cols-2 gap-2 px-4 py-3 border-t border-gray-100 bg-gray-50/50">
-                <div className="space-y-1">
-                  <Label className="text-xs text-gray-400">Arrival</Label>
-                  <Input type="date" value={d.arrivalDate} onChange={e => updateDate(i, 'arrivalDate', e.target.value)} className="h-8 text-xs bg-white" />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs text-gray-400">Departure</Label>
-                  <Input type="date" value={d.departureDate} onChange={e => updateDate(i, 'departureDate', e.target.value)} className="h-8 text-xs bg-white" />
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Manual add */}
-      <div>
-        <button onClick={() => setShowManual(v => !v)} className="text-xs text-gray-400 hover:text-gray-600 underline transition-colors">
-          {showManual ? 'Hide' : '+ Add a place manually'}
         </button>
-        {showManual && (
-          <div className="flex gap-2 mt-2">
-            <Input value={manCity} onChange={e => setManCity(e.target.value)} onKeyDown={e => e.key === 'Enter' && addManual()} placeholder="City or place" className="flex-1" />
-            <Input value={manCountry} onChange={e => setManCountry(e.target.value)} placeholder="IT" maxLength={2} className="w-16 uppercase" />
-            <Button onClick={addManual} size="sm" className="bg-teal-600 hover:bg-teal-700">Add</Button>
+        <button onClick={() => setMode('explore')}
+          className="group text-left rounded-2xl border-2 border-gray-200 hover:border-orange-400 bg-white hover:bg-orange-50 p-5 transition-all">
+          <div className="flex items-start gap-4">
+            <span className="text-3xl">✨</span>
+            <div>
+              <div className="font-semibold text-gray-900 group-hover:text-orange-700">Help me plan my trip</div>
+              <div className="text-sm text-gray-500 mt-0.5">I know roughly what I want but need help choosing destinations and dates</div>
+            </div>
           </div>
-        )}
+        </button>
       </div>
     </div>
   )
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-gray-900 mb-1">
+            {mode === 'know' ? '🗓️ Your destinations' : '✨ Plan my trip'}
+          </h2>
+          <p className="text-sm text-gray-500">
+            {mode === 'know' ? 'Add the cities you want to visit with dates' : 'Describe what you\'re looking for — I\'ll build the perfect itinerary'}
+          </p>
+        </div>
+        <button onClick={() => { setMode(null); update({ destinations: [] }) }}
+          className="text-xs text-gray-400 hover:text-gray-600 underline">
+          Change
+        </button>
+      </div>
+
+      {dateBar}
+
+      {/* ── KNOW MODE ── */}
+      {mode === 'know' && (
+        <div className="space-y-3">
+          <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 p-4 space-y-3">
+            <p className="text-xs font-medium text-gray-500">Add a destination</p>
+            <div className="grid grid-cols-3 gap-2">
+              <Input value={knowCity} onChange={e => setKnowCity(e.target.value)}
+                placeholder="City / Place" className="col-span-2 text-sm" />
+              <Input value={knowCountry} onChange={e => setKnowCountry(e.target.value)}
+                placeholder="IT" maxLength={2} className="uppercase text-sm" />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <Label className="text-xs text-gray-400">Arrival</Label>
+                <Input type="date" value={knowArrival} onChange={e => setKnowArrival(e.target.value)} className="h-8 text-xs" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs text-gray-400">Departure</Label>
+                <Input type="date" value={knowDeparture} onChange={e => setKnowDeparture(e.target.value)} className="h-8 text-xs" />
+              </div>
+            </div>
+            <Button onClick={addKnownPlace} disabled={!knowCity.trim() || !knowCountry.trim()}
+              className="w-full bg-teal-600 hover:bg-teal-700 h-9 text-sm">
+              + Add destination
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* ── EXPLORE MODE ── */}
+      {mode === 'explore' && (
+        <div className="space-y-3">
+          <textarea
+            value={freeText}
+            onChange={e => { setFreeText(e.target.value); update({ travelWish: e.target.value }) }}
+            placeholder={'Describe your ideal holiday...\n\nFor example: "I want to relax by a lake, explore medieval towns, eat amazing Italian food. Not too much walking — we have a 3-year old with us."'}
+            rows={4}
+            className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-teal-400 focus:border-transparent placeholder:text-gray-400 leading-relaxed"
+          />
+
+          {analyzingTags && (
+            <div className="flex items-center gap-2 text-xs text-gray-400">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              <span>Analysing your wishes...</span>
+            </div>
+          )}
+          {suggestedTags.length > 0 && !analyzingTags && (
+            <div className="space-y-2">
+              <p className="text-xs text-gray-500 font-medium">I found these destinations — select the ones you want:</p>
+              <div className="flex flex-wrap gap-2">
+                {suggestedTags.map(tag => {
+                  const selected = selectedCities.has(tag.city)
+                  return (
+                    <button key={tag.city} onClick={() => toggleTag(tag.city)}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                        selected ? 'bg-teal-500 border-teal-500 text-white shadow-sm' : 'bg-white border-gray-200 text-gray-500 hover:border-teal-300 hover:text-teal-600'
+                      }`}>
+                      <span>{tag.emoji}</span><span>{tag.city}</span>
+                      {selected && <span className="opacity-80">✓</span>}
+                    </button>
+                  )
+                })}
+              </div>
+              <p className="text-xs text-gray-400">{selectedCities.size} selected — deselect any you don&apos;t want</p>
+            </div>
+          )}
+
+          <Button onClick={parseWithAI} disabled={!freeText.trim() || selectedCities.size === 0 || parsing}
+            className="w-full bg-gradient-to-r from-teal-500 to-sky-500 hover:from-teal-600 hover:to-sky-600 font-semibold py-5 disabled:opacity-40">
+            {parsing
+              ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Planning your itinerary...</>
+              : suggestedTags.length === 0 ? '✨ Build my itinerary'
+                : `✨ Build itinerary for ${selectedCities.size} place${selectedCities.size !== 1 ? 's' : ''}`}
+          </Button>
+
+          {insight && (
+            <div className="flex items-start gap-2 bg-gradient-to-r from-teal-50 to-sky-50 rounded-xl p-3 border border-teal-100">
+              <span className="text-lg flex-shrink-0">🧳</span>
+              <p className="text-sm text-teal-800 italic">{insight}</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── DESTINATION CARDS (both modes) ── */}
+      <DestinationCards dests={dests} totalDays={totalDays} onRemove={removeDestination} onUpdateDate={updateDate} />
+
+      {/* ── DEAL ALERT ── */}
+      {loadingDeal && dests.length > 0 && (
+        <div className="flex items-center gap-2 text-xs text-amber-600">
+          <Loader2 className="h-3 w-3 animate-spin" /><span>Checking for better deals...</span>
+        </div>
+      )}
+      {dealTip?.hasDeal && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 space-y-1.5">
+          <div className="flex items-center gap-2">
+            <span className="text-base">💡</span>
+            <span className="text-sm font-semibold text-amber-800">Travel tip — save money</span>
+            {dealTip.saving && <Badge className="ml-auto bg-amber-100 text-amber-700 text-xs">{dealTip.saving}</Badge>}
+          </div>
+          {dealTip.tip && <p className="text-sm text-amber-700">{dealTip.tip}</p>}
+          {dealTip.alternative && <p className="text-xs text-amber-600 font-medium">💬 Alternative: {dealTip.alternative}</p>}
+          {dealTip.reason && <p className="text-xs text-amber-500">{dealTip.reason}</p>}
+        </div>
+      )}
+
+      {/* Manual add (know mode only) */}
+      {mode === 'know' && dests.length > 0 && (
+        <div className="text-center">
+          <button onClick={() => { setKnowCity(''); setKnowCountry('') }}
+            className="text-xs text-teal-600 hover:text-teal-700 font-medium">
+            + Add another destination
+          </button>
+        </div>
+      )}
+
+      {/* Legacy manual add for explore mode */}
+      {mode === 'explore' && (
+        <div>
+          <button onClick={() => { }} className="text-xs text-gray-400 hover:text-gray-600 underline transition-colors">
+            + Add a place manually
+          </button>
+        </div>
+      )}
+    </div>
+  )
 }
+
 
 // Step 3: Dates overview + flexibility
 function DatesStep({ data, update }: { data: TripDraft; update: (p: Partial<TripDraft>) => void }) {
