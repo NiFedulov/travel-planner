@@ -108,6 +108,10 @@ export function Navbar() {
                       className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
                       <User className="h-4 w-4 text-gray-400" /> Travel Profile
                     </Link>
+                    <Link href="/account/services" onClick={() => setDropOpen(false)}
+                      className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                      <span className="h-4 w-4 flex items-center justify-center text-xs">🔗</span> Connected Services
+                    </Link>
                     <div className="border-t border-gray-50 mt-1 pt-1">
                       <button onClick={handleLogout}
                         className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors">

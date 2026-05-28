@@ -4,7 +4,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
 }
 
 model User {
@@ -15,14 +15,15 @@ model User {
   googleId  String?  @unique
   image     String?
   createdAt DateTime @default(now())
-  profile   Profile?
-  trips     Trip[]
+  profile           Profile?
+  trips             Trip[]
+  connectedServices ConnectedService[]
 }
 
 model Profile {
   id                   String   @id @default(cuid())
-  userId               String?  @unique
-  user                 User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userId               String   @unique
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   travelers            String   // JSON: Traveler[]
   vacationStyle        String   @default("[]") // JSON: string[]
   travelPace           String   @default("moderate")
@@ -53,8 +54,8 @@ model Profile {
 
 model Trip {
   id                     String   @id @default(cuid())
-  userId                 String?
-  user                   User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userId                 String
+  user                   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   profileId              String
   profile                Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
   name                   String
@@ -125,6 +126,52 @@ model MockHotel {
   reviewCount      Int
   imageSlug        String
   address          String
+}
+
+model ConnectedService {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category        String   // 'accommodation' | 'car_rental' | 'travel_intel'
+  provider        String   // 'airbnb' | 'booking' | 'hertz' | etc.
+  username        String?
+  membershipId    String?
+  membershipLevel String?
+  historyPasted   String?  // raw pasted booking confirmations
+  aiInsights      String?  // JSON: AI-extracted preference profile
+  analysisStatus  String   @default("none") // 'none' | 'analyzing' | 'done'
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([userId, provider])
+  @@index([userId])
+}
+
+model Event {
+  id         String   @id @default(cuid())
+  userId     String?
+  event      String
+  properties String?  // JSON: arbitrary properties
+  createdAt  DateTime @default(now())
+
+  @@index([event])
+  @@index([createdAt])
+  @@index([userId])
+}
+
+// Audit log for security-sensitive actions (login, logout, trip delete, profile changes)
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  action    String   // 'login_success' | 'login_failed' | 'logout' | 'trip_deleted' | etc.
+  ip        String?
+  userAgent String?
+  metadata  String?  // JSON
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
 }
 
 model MockCar {

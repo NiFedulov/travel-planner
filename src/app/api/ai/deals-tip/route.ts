@@ -1,13 +1,45 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAnthropicClient } from '@/lib/ai/client'
+import { getSession } from '@/lib/auth'
+import { rateLimit, aiLimiter, getIdentifier } from '@/lib/rateLimit'
+import { sanitizeForPrompt } from '@/lib/sanitize'
+import { AI_SAFETY_PREAMBLE } from '@/lib/aiInput'
+import { logger } from '@/lib/logger'
+import { z } from 'zod'
+
+const cityRegex = /^[\p{L}\s\-',.()]+$/u
+
+const inputSchema = z.object({
+  origin: z.string().max(80).optional().nullable(),
+  destinations: z.array(z.object({
+    city: z.string().max(80).regex(cityRegex, 'Invalid city'),
+    country: z.string().max(80).optional().nullable(),
+  })).min(1).max(20),
+  startDate: z.string().min(1).max(30),
+  endDate: z.string().max(30).optional().nullable(),
+})
 
 export async function POST(req: NextRequest) {
-  try {
-    const { origin, destinations, startDate, endDate } = await req.json()
-    if (!destinations?.length || !startDate) return NextResponse.json({ tip: null })
+  const user = await getSession()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const destList = destinations.map((d: { city: string; country: string }) => `${d.city}, ${d.country}`).join(' · ')
-    const month = new Date(startDate).toLocaleString('en', { month: 'long' })
+  const limited = await rateLimit(aiLimiter, getIdentifier(req, user.id))
+  if (limited) return limited
+
+  try {
+    const parsed = inputSchema.safeParse(await req.json())
+    if (!parsed.success) return NextResponse.json({ tip: null })
+    const { origin, destinations, startDate, endDate } = parsed.data
+
+    const destList = destinations
+      .map(d => `${sanitizeForPrompt(d.city, 60)}${d.country ? `, ${sanitizeForPrompt(d.country, 60)}` : ''}`)
+      .join(' · ')
+    const safeOrigin = sanitizeForPrompt(origin, 80) || 'Europe'
+    const safeStart = sanitizeForPrompt(startDate, 30)
+    const safeEnd = endDate ? sanitizeForPrompt(endDate, 30) : 'open'
+    const month = (() => {
+      try { return new Date(startDate).toLocaleString('en', { month: 'long' }) } catch { return 'unknown' }
+    })()
 
     const client = getAnthropicClient()
     const message = await client.messages.create({
@@ -15,8 +47,13 @@ export async function POST(req: NextRequest) {
       max_tokens: 300,
       messages: [{
         role: 'user',
-        content: `A traveler from ${origin || 'Europe'} wants to visit: ${destList}
-Trip dates: ${startDate} to ${endDate || 'open'} (${month})
+        content: `${AI_SAFETY_PREAMBLE}
+
+<trip_data>
+Traveler from: ${safeOrigin}
+Wants to visit: ${destList}
+Trip dates: ${safeStart} to ${safeEnd} (${month})
+</trip_data>
 
 As a travel deal expert, check:
 1. Is ${month} peak/expensive season for these destinations?
@@ -43,7 +80,7 @@ Return ONLY valid JSON.`
 
     return NextResponse.json(JSON.parse(match[0]))
   } catch (err) {
-    console.error('deals-tip error:', err)
+    logger.error('deals-tip error', err)
     return NextResponse.json({ tip: null })
   }
 }

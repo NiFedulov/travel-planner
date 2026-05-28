@@ -1,4 +1,6 @@
 import type { Passport } from '@/lib/types/profile'
+import { sanitizeForPrompt, sanitizeArray } from '@/lib/sanitize'
+import { AI_SAFETY_PREAMBLE } from '@/lib/aiInput'
 
 export function buildVisaCheckPrompt(
   passports: Passport[],
@@ -6,12 +8,27 @@ export function buildVisaCheckPrompt(
   startDate: string,
   existingVisas: string[],
 ): string {
-  return `You are a travel visa expert. Analyze visa requirements accurately.
+  const safePassports = (Array.isArray(passports) ? passports : []).slice(0, 20).map(p => ({
+    country: sanitizeForPrompt(p?.country, 80),
+    code: sanitizeForPrompt(p?.countryCode, 4),
+    expiry: sanitizeForPrompt(p?.expiryDate, 30),
+  })).filter(p => p.country)
+  const safeDest = (Array.isArray(destinations) ? destinations : []).slice(0, 20).map(d => ({
+    country: sanitizeForPrompt(d?.country, 80),
+    code: sanitizeForPrompt(d?.countryCode, 4),
+  })).filter(d => d.country)
+  const safeVisas = sanitizeArray(existingVisas, 50, 100)
 
-Traveler passports: ${passports.map(p => `${p.country} (${p.countryCode}), expires ${p.expiryDate}`).join(', ')}
-Existing visas/permits: ${existingVisas.length > 0 ? existingVisas.join(', ') : 'none'}
-Travel start date: ${startDate}
-Destinations: ${destinations.map(d => `${d.country} (${d.countryCode})`).join(', ')}
+  return `${AI_SAFETY_PREAMBLE}
+
+You are a travel visa expert. Analyze visa requirements accurately.
+
+<traveler_data>
+Passports: ${safePassports.map(p => `${p.country} (${p.code}), expires ${p.expiry}`).join(', ') || 'none'}
+Existing visas/permits: ${safeVisas.length > 0 ? safeVisas.join(', ') : 'none'}
+Travel start date: ${sanitizeForPrompt(startDate, 30)}
+Destinations: ${safeDest.map(d => `${d.country} (${d.code})`).join(', ')}
+</traveler_data>
 
 For each destination, return a JSON array with this exact structure:
 [
@@ -39,10 +56,19 @@ export function buildHealthCheckPrompt(
   destinations: Array<{ country: string; countryCode: string }>,
   travelDates: { start: string; end: string },
 ): string {
-  return `You are a travel health expert. Analyze vaccination and health requirements.
+  const safeDest = (Array.isArray(destinations) ? destinations : []).slice(0, 20).map(d => ({
+    country: sanitizeForPrompt(d?.country, 80),
+    code: sanitizeForPrompt(d?.countryCode, 4),
+  })).filter(d => d.country)
 
-Destinations: ${destinations.map(d => `${d.country} (${d.countryCode})`).join(', ')}
-Travel dates: ${travelDates.start} to ${travelDates.end}
+  return `${AI_SAFETY_PREAMBLE}
+
+You are a travel health expert. Analyze vaccination and health requirements.
+
+<trip_data>
+Destinations: ${safeDest.map(d => `${d.country} (${d.code})`).join(', ')}
+Travel dates: ${sanitizeForPrompt(travelDates?.start, 30)} to ${sanitizeForPrompt(travelDates?.end, 30)}
+</trip_data>
 
 Return a JSON array of health requirements:
 [

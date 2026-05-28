@@ -1,6 +1,7 @@
 'use client'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
+import { Sparkles } from 'lucide-react'
 import type { AccommodationType } from '@/lib/types/profile'
 
 const TYPES: Array<{ value: AccommodationType; emoji: string; label: string }> = [
@@ -14,8 +15,18 @@ const TYPES: Array<{ value: AccommodationType; emoji: string; label: string }> =
 
 const STARS = [1, 2, 3, 4, 5]
 
+interface AccInsights {
+  providerName: string
+  preferredTypes?: string[]
+  mustHaveAmenities?: string[]
+  minStars?: number | null
+  breakfastPreference?: string
+  cancellationPolicy?: string
+  insights?: string
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function AccommodationStep({ data, update }: { data: any; update: (p: any) => void }) {
+export function AccommodationStep({ data, update, serviceInsights }: { data: any; update: (p: any) => void; serviceInsights?: AccInsights[] }) {
   const acc = data.accommodation ?? { types: ['hotel'], minStars: 3 }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -26,12 +37,64 @@ export function AccommodationStep({ data, update }: { data: any; update: (p: any
     patch({ types: types.includes(t) ? types.filter(x => x !== t) : [...types, t] })
   }
 
+  function applyInsights(si: AccInsights) {
+    const typeMap: Record<string, AccommodationType> = {
+      entire_home: 'airbnb', apartment: 'airbnb', hotel_room: 'hotel',
+      resort: 'resort', hostel: 'hostel', boutique: 'boutique', villa: 'resort',
+    }
+    const mappedTypes = si.preferredTypes
+      ?.map(t => typeMap[t])
+      .filter(Boolean) as AccommodationType[] | undefined
+
+    const amenityMap: Record<string, string> = {
+      pool: 'mustHavePool',
+      parking: 'mustHaveParking',
+      free_parking: 'mustHaveParking',
+      breakfast: 'breakfastIncluded',
+      pets: 'petFriendly',
+      pet_friendly: 'petFriendly',
+    }
+    const amenityPatches: Record<string, boolean> = {}
+    si.mustHaveAmenities?.forEach(a => {
+      const field = amenityMap[a.toLowerCase()]
+      if (field) amenityPatches[field] = true
+    })
+    if (si.breakfastPreference === 'included') amenityPatches.breakfastIncluded = true
+
+    patch({
+      ...(mappedTypes?.length ? { types: mappedTypes } : {}),
+      ...(si.minStars ? { minStars: si.minStars } : {}),
+      ...amenityPatches,
+    })
+  }
+
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-lg font-semibold text-gray-900 mb-1">Accommodation preferences</h2>
         <p className="text-sm text-gray-500">What kind of place do you like to stay?</p>
       </div>
+
+      {/* Service insights banners */}
+      {serviceInsights && serviceInsights.length > 0 && (
+        <div className="space-y-2">
+          {serviceInsights.map((si, i) => (
+            <div key={i} className="flex items-start gap-3 bg-purple-50 border border-purple-100 rounded-xl p-3">
+              <Sparkles size={16} className="text-purple-500 flex-shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold text-purple-700 mb-0.5">From your {si.providerName} history</p>
+                {si.insights && <p className="text-xs text-purple-600 italic mb-2">{si.insights}</p>}
+              </div>
+              <button
+                onClick={() => applyInsights(si)}
+                className="flex-shrink-0 text-xs px-2.5 py-1 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium"
+              >
+                Apply
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="grid grid-cols-3 gap-2">
         {TYPES.map(({ value, emoji, label }) => (

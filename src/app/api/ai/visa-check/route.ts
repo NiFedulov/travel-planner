@@ -1,11 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAnthropicClient } from '@/lib/ai/client'
 import { buildVisaCheckPrompt, buildHealthCheckPrompt } from '@/lib/ai/prompts/visaCheck'
+import { getSession } from '@/lib/auth'
+import { rateLimit, aiLimiter, getIdentifier } from '@/lib/rateLimit'
+import { track } from '@/lib/analytics'
+import { getCached, setCached, cacheKey } from '@/lib/aiCache'
 
 export async function POST(req: NextRequest) {
+  const user = await getSession()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const limited = await rateLimit(aiLimiter, getIdentifier(req, user.id))
+  if (limited) return limited
+
   try {
     const body = await req.json()
     const { passports, destinations, startDate, endDate, existingVisas, checkType = 'visa' } = body
+
+    const key = cacheKey('visa-check', { passports, destinations, startDate, endDate, existingVisas, checkType })
+    const cached = getCached(key)
+    if (cached) return NextResponse.json(cached)
 
     const client = getAnthropicClient()
     const prompt = checkType === 'health'
@@ -23,7 +37,16 @@ export async function POST(req: NextRequest) {
     if (!jsonMatch) throw new Error('No JSON array in response')
 
     const result = JSON.parse(jsonMatch[0])
-    return NextResponse.json({ result })
+    const response = { result }
+    setCached(key, response)
+
+    await track('ai_visa_check', user.id, {
+      passportCount: passports?.length ?? 0,
+      destCount: destinations?.length ?? 0,
+      checkType,
+    })
+
+    return NextResponse.json(response)
   } catch (err) {
     console.error('visa-check error:', err)
     return NextResponse.json({ error: 'AI check failed', result: [] }, { status: 500 })

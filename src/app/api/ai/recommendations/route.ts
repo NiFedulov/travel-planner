@@ -1,10 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAnthropicClient } from '@/lib/ai/client'
+import { parseJsonWithRetry } from '@/lib/ai/parseJson'
 import { buildRecommendationsPrompt } from '@/lib/ai/prompts/recommendations'
+import { getSession } from '@/lib/auth'
+import { rateLimit, aiLimiter, getIdentifier } from '@/lib/rateLimit'
+import { track } from '@/lib/analytics'
 
 export async function POST(req: NextRequest) {
+  const user = await getSession()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const limited = await rateLimit(aiLimiter, getIdentifier(req, user.id))
+  if (limited) return limited
+
   try {
-    const { profile, originCity, destinations, startDate, endDate } = await req.json()
+    const { profile, originCity, destinations, startDate, endDate, tripId } = await req.json()
     const client = getAnthropicClient()
     const prompt = buildRecommendationsPrompt(
       profile,
@@ -22,10 +32,13 @@ export async function POST(req: NextRequest) {
     })
 
     const text = message.content[0].type === 'text' ? message.content[0].text : ''
-    const jsonMatch = text.match(/\{[\s\S]*\}/)
-    if (!jsonMatch) throw new Error('No JSON in response')
+    const result = await parseJsonWithRetry(client, text, 'claude-sonnet-4-6')
 
-    const result = JSON.parse(jsonMatch[0])
+    await track('ai_recommendations', user.id, {
+      tripId,
+      destCount: destinations?.length ?? 0,
+    })
+
     return NextResponse.json({ result })
   } catch (err) {
     console.error('recommendations error:', err)

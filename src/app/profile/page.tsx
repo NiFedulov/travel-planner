@@ -60,11 +60,16 @@ export default function ProfilePage() {
   const [data, setData] = useState<Record<string, any>>(DEFAULT_PROFILE)
   const [profileId, setProfileId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [connectedServices, setConnectedServices] = useState<any[]>([])
 
   useEffect(() => {
     fetch('/api/profile').then(r => r.json()).then(p => {
       if (p) { setData({ ...DEFAULT_PROFILE, ...p }); setProfileId(p.id) }
     })
+    fetch('/api/services').then(r => r.json()).then(s => {
+      if (Array.isArray(s)) setConnectedServices(s)
+    }).catch(() => {})
   }, [])
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -93,6 +98,10 @@ export default function ProfilePage() {
   }
 
   const StepComponent = [TravelersStep, HealthStep, StyleStep, AccommodationStep, BudgetStep, FlightStep, DocumentsStep, LoyaltyStep, CuisineStep][step]
+
+  const accommodationInsights = connectedServices
+    .filter(s => s.category === 'accommodation' && s.analysisStatus === 'done' && s.aiInsights)
+    .map(s => ({ providerName: s.provider.charAt(0).toUpperCase() + s.provider.slice(1).replace('_', '.'), ...s.aiInsights }))
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
@@ -137,7 +146,11 @@ export default function ProfilePage() {
       {/* Step content */}
       <Card className="border-0 shadow-md">
         <CardContent className="p-6">
-          <StepComponent data={data} update={update} />
+          <StepComponent
+            data={data}
+            update={update}
+            {...(step === 3 && accommodationInsights.length > 0 ? { serviceInsights: accommodationInsights } : {})}
+          />
         </CardContent>
       </Card>
 

@@ -94,6 +94,16 @@ export default function AccountPage() {
           </div>
           <ChevronRight className="h-4 w-4 text-gray-300 group-hover:text-orange-400" />
         </Link>
+        <Link href="/account/services" className="group col-span-2 flex items-center gap-3 bg-gradient-to-r from-purple-50 to-violet-50 rounded-xl border border-purple-100 hover:border-purple-300 p-4 transition-all">
+          <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center group-hover:bg-purple-200">
+            <span className="text-lg">🔗</span>
+          </div>
+          <div className="flex-1">
+            <div className="text-sm font-semibold text-gray-800">Connected Services</div>
+            <div className="text-xs text-gray-500">Airbnb, Booking.com, Hertz and more — AI learns your preferences</div>
+          </div>
+          <ChevronRight className="h-4 w-4 text-gray-300 group-hover:text-purple-400" />
+        </Link>
       </div>
 
       {/* Recent trips */}
