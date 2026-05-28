@@ -9,20 +9,22 @@ import { logger } from './logger'
  * Использует Upstash Redis с HTTP API — работает в serverless functions без
  * persistent TCP connections (ioredis в serverless течёт пулом).
  *
- * Env vars (Vercel Integrations → Upstash → автоматически проставляются):
- *  - UPSTASH_REDIS_REST_URL
- *  - UPSTASH_REDIS_REST_TOKEN
+ * Env vars: ПОДДЕРЖИВАЕМ ОБА варианта именования.
+ *  Vercel Marketplace (Upstash for Redis) ставит KV_REST_API_URL / KV_REST_API_TOKEN.
+ *  Прямой Upstash account ставит UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN.
  *
- * Если они не выставлены — падаем на in-memory (только для локального dev на
+ * Если ничего не выставлено — падаем на in-memory (только для локального dev на
  * одном процессе). В serverless prod это сломается между cold starts — лог warn.
  */
 
-const hasUpstash = !!process.env.UPSTASH_REDIS_REST_URL && !!process.env.UPSTASH_REDIS_REST_TOKEN
+const upstashUrl = process.env.UPSTASH_REDIS_REST_URL ?? process.env.KV_REST_API_URL
+const upstashToken = process.env.UPSTASH_REDIS_REST_TOKEN ?? process.env.KV_REST_API_TOKEN
+const hasUpstash = !!upstashUrl && !!upstashToken
 
 const redis = hasUpstash
   ? new Redis({
-      url: process.env.UPSTASH_REDIS_REST_URL!,
-      token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+      url: upstashUrl!,
+      token: upstashToken!,
     })
   : null
 
