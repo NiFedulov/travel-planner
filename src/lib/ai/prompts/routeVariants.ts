@@ -29,7 +29,7 @@ export function buildRouteVariantsPrompt(input: RouteVariantPromptInput): string
 
   return `${AI_SAFETY_PREAMBLE}
 
-You are a travel routing expert. Generate up to 5 DIFFERENT optimal route variants for a trip.
+You are a travel routing expert. Generate up to 3 DIFFERENT optimal route variants for a trip.
 
 <trip_request>
 ORIGIN: ${safeOrigin}${safeOriginIata ? ` (${safeOriginIata})` : ' (resolve the IATA code for the main airport serving this city — return it as originIata)'}
@@ -80,7 +80,7 @@ Return ONLY this JSON, nothing else:
 }
 
 Rules:
-- Generate 3-5 variants — they MUST differ in IN/OUT cities or stop order or night distribution.
+- Generate 2-3 variants — they MUST differ in IN/OUT cities or stop order or night distribution.
 - arrivalDate of first stop = trip start (or start ± flex). departureDate of last stop = trip end. Consecutive dates, no gaps.
 - IATA codes must be real and serve the city's main airport (MXP for Milan-Malpensa, LIN for Linate, BGY for Bergamo, etc.).
 - Strict valid JSON. No comments. No trailing commas. No prose outside the JSON.`

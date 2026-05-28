@@ -176,7 +176,9 @@ export async function POST(req: NextRequest) {
       throw new Error('No tool_use in AI response')
     }
     const parsed = toolUse.input as { variants?: AiVariant[]; originIata?: string }
-    const variants = (parsed.variants ?? []).slice(0, 5)
+    // Vercel Hobby has a 60s function timeout. Each variant triggers ~10-15 SerpAPI calls,
+    // so we cap at 3 variants to stay within the limit. Upgrade to Pro for more.
+    const variants = (parsed.variants ?? []).slice(0, 3)
 
     // Prefer AI-resolved IATA over a literal IATA in the user input.
     // Never fall back to a naive guess — "limassol" sliced to "LIM" = Lima, PE.
@@ -192,13 +194,9 @@ export async function POST(req: NextRequest) {
     }
 
     const flexCap = Math.min(5, Math.max(0, flexDays ?? 0))
-    // Sample shifts at extremes + center to keep SerpApi calls bounded
-    const shiftPoints = flexCap === 0 ? [0]
-      : flexCap === 1 ? [-1, 0, 1]
-      : flexCap === 2 ? [-2, -1, 0, 1, 2]
-      : flexCap === 3 ? [-3, -1, 0, 1, 3]
-      : flexCap === 4 ? [-4, -2, 0, 2, 4]
-      : [-5, -3, 0, 3, 5]
+    // Vercel Hobby 60s constraint: at most 3 shift points (center + 2 extremes).
+    // Each shift point = 2 SerpAPI flight calls (out + return) × N variants.
+    const shiftPoints = flexCap === 0 ? [0] : [-flexCap, 0, flexCap]
 
     // Filter out variants the AI may have proposed with too-short windows for the planned stops
     const minStopsNights = (v: AiVariant) => v.stops.length
